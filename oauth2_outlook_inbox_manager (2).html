@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 Outlook Inbox Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 sticky top-0 z-30 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-envelope-open-text text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-tight">Outlook OAuth2 Inbox Viewer</h1>
+                    <p class="text-xs text-slate-400">Microsoft Graph API Token Manager & Mail Reader</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 text-xs">
+                <button onclick="toggleTroubleshootModal()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-600 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-question text-amber-400"></i> CORS & Network Guide
+                </button>
+                <span class="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> Graph API v1.0
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Panel: Input & Account List -->
+        <section class="lg:col-span-5 flex flex-col space-y-6">
+            
+            <!-- Bulk Input Card -->
+            <div class="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-5 shadow-xl">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-key text-blue-400"></i> OAuth2 Credentials Input
+                    </h2>
+                    <span class="text-xs text-slate-400">1 entry per line</span>
+                </div>
+                
+                <p class="text-xs text-slate-400 mb-3">
+                    Format: <code class="bg-slate-900 px-1.5 py-0.5 rounded text-blue-300 border border-slate-700">email|password|refresh_token|client_id</code>
+                </p>
+
+                <textarea id="rawInput" rows="5" 
+                    placeholder="user1@outlook.com|MyPass123!|M.R3_BAY...|12345678-xxxx-xxxx-xxxx-123456789abc&#10;user2@outlook.com|Pass456#|M.R3_BAY...|87654321-xxxx-xxxx-xxxx-987654321cba"
+                    class="w-full bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono transition resize-none"></textarea>
+
+                <!-- Configuration Controls -->
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Tenant ID</label>
+                        <select id="tenantSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none">
+                            <option value="common">common (Multi-tenant & Personal)</option>
+                            <option value="consumers">consumers (Personal MS Accounts)</option>
+                            <option value="organizations">organizations (Work or School)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Max Messages</label>
+                        <select id="messageLimit" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none">
+                            <option value="10">Top 10 emails</option>
+                            <option value="25" selected>Top 25 emails</option>
+                            <option value="50">Top 50 emails</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Network / CORS Proxy Setting -->
+                <div class="mt-3 pt-3 border-t border-slate-700/50">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[11px] font-semibold text-amber-400 flex items-center gap-1">
+                            <i class="fa-solid fa-shield-halved"></i> Network & CORS Gateway
+                        </label>
+                        <button onclick="testProxyGateway()" class="text-[10px] text-indigo-400 hover:text-indigo-300 underline font-medium">
+                            <i class="fa-solid fa-bolt"></i> Test Connection
+                        </button>
+                    </div>
+                    <select id="corsProxyMode" onchange="toggleCustomProxyInput()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none">
+                        <option value="custom" selected>Custom CORS Proxy / Cloudflare Worker</option>
+                        <option value="auto">Auto Fallback (Direct + Relays)</option>
+                        <option value="direct">Direct Native Request Only</option>
+                        <option value="corsproxy">CorsProxy.io (with API Key)</option>
+                    </select>
+                    <div id="customProxyContainer" class="mt-2">
+                        <input type="text" id="customProxyUrl" value="https://young-mud-238f.rizkyfrian03.workers.dev/?url=" placeholder="https://your-worker.workers.dev/?url=" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none font-mono">
+                        <p class="text-[10px] text-slate-500 mt-1">Cloudflare Worker URL active by default to bypass Azure Origin restrictions completely.</p>
+                    </div>
+                    <div id="corsProxyKeyContainer" class="mt-2 hidden">
+                        <input type="text" id="corsProxyKey" placeholder="Paste CorsProxy.io API Key (temp_...)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none font-mono">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 mt-4">
+                    <button id="loadAccountsBtn" onclick="parseAndLoadAccounts()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-list-check"></i> Load Accounts
+                    </button>
+                    <button onclick="clearAccounts()" title="Clear Queue" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium text-xs py-2.5 px-3 rounded-xl transition">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Account List Card -->
+            <div class="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-5 shadow-xl flex-1 flex flex-col min-h-[280px]">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-indigo-400"></i> Account Queue (<span id="accountCount">0</span>)
+                    </h2>
+                    <button onclick="fetchAllAccounts()" id="fetchAllBtn" disabled class="disabled:opacity-50 text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate"></i> Fetch All Inboxes
+                    </button>
+                </div>
+
+                <!-- Account Items Container -->
+                <div id="accountList" class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[350px]">
+                    <div class="text-center py-10 text-slate-500 text-xs">
+                        <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-600 block"></i>
+                        No accounts loaded yet. Paste format above and click "Load Accounts".
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Mail Reader -->
+        <section class="lg:col-span-7 flex flex-col space-y-6">
+            
+            <div class="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-5 shadow-xl flex-1 flex flex-col h-[700px]">
+                
+                <!-- Active Account Header -->
+                <div class="flex items-center justify-between border-b border-slate-700/70 pb-4 mb-4">
+                    <div>
+                        <span class="text-xs text-slate-400 block uppercase tracking-wider font-semibold">Active Selection</span>
+                        <h3 id="currentEmailDisplay" class="text-base font-bold text-white flex items-center gap-2">
+                            Select an account from the queue
+                        </h3>
+                    </div>
+                    <div id="mailCountBadge" class="hidden text-xs bg-slate-700 text-slate-300 px-3 py-1 rounded-full font-medium">
+                        0 Messages
+                    </div>
+                </div>
+
+                <!-- Main Email Area (Messages Split View) -->
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 overflow-hidden">
+                    
+                    <!-- Email List Column -->
+                    <div id="emailListCol" class="md:col-span-5 border-r border-slate-700/50 pr-3 overflow-y-auto space-y-2">
+                        <div class="text-center py-12 text-slate-500 text-xs">
+                            <i class="fa-regular fa-envelope text-3xl mb-2 text-slate-600 block"></i>
+                            Select or fetch an account to load inbox messages.
+                        </div>
+                    </div>
+
+                    <!-- Email Detail Reader Column -->
+                    <div id="emailDetailCol" class="md:col-span-7 pl-2 overflow-y-auto flex flex-col bg-slate-900/50 rounded-xl p-4 border border-slate-700/40">
+                        <div class="my-auto text-center py-12 text-slate-500 text-xs">
+                            <i class="fa-solid fa-file-invoice text-3xl mb-2 text-slate-600 block"></i>
+                            Click an email message on the left to read details.
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Troubleshoot Modal -->
+    <div id="troubleshootModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 max-w-xl w-full rounded-2xl shadow-2xl p-6 relative flex flex-col max-h-[90vh]">
+            <button onclick="toggleTroubleshootModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl flex-shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white">Resolving "Cross-origin token redemption" Errors</h3>
+                    <p class="text-xs text-slate-400">Azure AD Origin Header Restriction Solution</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-xs text-slate-300 overflow-y-auto pr-2 flex-1">
+                <div class="p-3 bg-slate-900/80 border border-slate-700 rounded-xl">
+                    <strong class="text-amber-300 block mb-1">Why does Azure reject token redemption?</strong>
+                    Azure AD rejects token requests if the browser sends an <code>Origin</code> header for a Client ID registered as a Web or Mobile client. To fix this, your CORS proxy must strip the <code>Origin</code> header before forwarding the request to Microsoft.
+                </div>
+
+                <div class="space-y-2 border-t border-slate-700/60 pt-3">
+                    <strong class="text-slate-100 block font-semibold text-xs">Recommended Fix: Deploy a Free Cloudflare Worker Proxy</strong>
+                    <p class="text-slate-400 mb-2">Create a free Cloudflare Worker with this code. It strips the browser's <code>Origin</code> header so Azure processes token redemption seamlessly:</p>
+                    <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-[10px] text-blue-300 overflow-x-auto whitespace-pre">
+export default {
+  async fetch(request) {
+    const url = new URL(request.url).searchParams.get('url');
+    if (!url) return new Response('Missing url query parameter', { status: 400 });
+    
+    // Create new request headers and strip Origin/Referer to bypass Azure origin check
+    const reqHeaders = new Headers(request.headers);
+    reqHeaders.delete('origin');
+    reqHeaders.delete('referer');
+
+    const response = await fetch(url, {
+      method: request.method,
+      headers: reqHeaders,
+      body: request.body
+    });
+
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+    newHeaders.set('Access-Control-Allow-Methods', '*');
+    newHeaders.set('Access-Control-Allow-Headers', '*');
+    return new Response(response.body, { status: response.status, headers: newHeaders });
+  }
+};</pre>
+                    <p class="text-slate-400 mt-2">Select <strong>Custom CORS Proxy</strong> under Network Gateway and paste your Worker URL (e.g. <code>https://my-proxy.workers.dev/?url=</code>).</p>
+                </div>
+            </div>
+
+            <div class="mt-5 pt-3 border-t border-slate-700/60 flex justify-end">
+                <button onclick="toggleTroubleshootModal()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-xs transition">
+                    Got it, Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2"></div>
+
+    <script>
+        let accounts = [];
+        let selectedAccountIndex = null;
+        let selectedMessageIndex = null;
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            const bgColors = {
+                success: 'bg-emerald-600 border-emerald-500 text-white',
+                error: 'bg-rose-600 border-rose-500 text-white',
+                warning: 'bg-amber-600 border-amber-500 text-white',
+                info: 'bg-blue-600 border-blue-500 text-white'
+            };
+
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-xmark',
+                warning: 'fa-triangle-exclamation',
+                info: 'fa-circle-info'
+            };
+
+            toast.className = `p-3 rounded-xl border shadow-xl flex items-center space-x-2 text-xs font-medium transition-all transform translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i> <span>${escapeHtml(message)}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function toggleCustomProxyInput() {
+            const mode = document.getElementById('corsProxyMode').value;
+            const customContainer = document.getElementById('customProxyContainer');
+            const keyContainer = document.getElementById('corsProxyKeyContainer');
+            
+            if (mode === 'custom') {
+                customContainer.classList.remove('hidden');
+                keyContainer.classList.add('hidden');
+            } else if (mode === 'corsproxy') {
+                customContainer.classList.add('hidden');
+                keyContainer.classList.remove('hidden');
+            } else {
+                customContainer.classList.add('hidden');
+                keyContainer.classList.add('hidden');
+            }
+        }
+
+        function toggleTroubleshootModal() {
+            const modal = document.getElementById('troubleshootModal');
+            modal.classList.toggle('hidden');
+        }
+
+        async function testProxyGateway() {
+            showToast('Testing gateway connection...', 'info');
+            try {
+                const res = await fetch('https://login.live.com/oauth20_token.srf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'grant_type=test_ping'
+                });
+                if (res.status) {
+                    showToast('Direct connection to Live.com endpoint reached!', 'success');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Direct ping failed, testing proxy fallback...', e);
+            }
+
+            const customProxy = document.getElementById('customProxyUrl')?.value.trim();
+            if (customProxy) {
+                try {
+                    let pUrl = customProxy;
+                    if (!pUrl.startsWith('http://') && !pUrl.startsWith('https://')) pUrl = 'https://' + pUrl;
+                    const fullUrl = pUrl.includes('url=') ? `${pUrl}${encodeURIComponent('https://login.live.com/oauth20_token.srf')}` : `${pUrl}https://login.live.com/oauth20_token.srf`;
+                    const res = await fetch(fullUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'grant_type=test_ping'
+                    });
+                    if (res.status) {
+                        showToast('Custom CORS Proxy connection successful!', 'success');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Custom proxy test failed:', e);
+                }
+            }
+
+            showToast('Gateway test completed. Use Custom CORS Proxy if public relays fail.', 'info');
+        }
+
+        async function executeTokenExchange(acc, tenant, bodyParams) {
+            const proxyMode = document.getElementById('corsProxyMode').value;
+            const customProxy = document.getElementById('customProxyUrl')?.value.trim();
+            const corsKey = document.getElementById('corsProxyKey')?.value.trim();
+            const tokenBody = new URLSearchParams(bodyParams);
+
+            const isConsumer = acc.email && /@(outlook|hotmail|live|msn)\./i.test(acc.email);
+
+            const baseEndpoints = [];
+            if (isConsumer) {
+                baseEndpoints.push(`https://login.live.com/oauth20_token.srf`);
+                baseEndpoints.push(`https://login.microsoftonline.com/consumers/oauth2/v2.0/token`);
+            }
+            baseEndpoints.push(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`);
+
+            const targets = [];
+
+            baseEndpoints.forEach(ep => {
+                if (proxyMode === 'auto' || proxyMode === 'direct') {
+                    targets.push({ name: `Direct (${new URL(ep).hostname})`, url: ep, isDirect: true });
+                }
+
+                if (customProxy) {
+                    let pUrl = customProxy;
+                    if (!pUrl.startsWith('http://') && !pUrl.startsWith('https://')) {
+                        pUrl = 'https://' + pUrl;
+                    }
+                    const fullUrl = pUrl.includes('url=') ? `${pUrl}${encodeURIComponent(ep)}` : `${pUrl}${ep}`;
+                    targets.push({ name: 'Custom Proxy', url: fullUrl, isDirect: false });
+                }
+
+                if (proxyMode === 'corsproxy' || (proxyMode === 'auto' && corsKey)) {
+                    const corsUrl = corsKey 
+                        ? `https://corsproxy.io/?key=${encodeURIComponent(corsKey)}&url=${encodeURIComponent(ep)}`
+                        : `https://corsproxy.io/?${encodeURIComponent(ep)}`;
+                    targets.push({ name: 'CorsProxy Relay', url: corsUrl, isDirect: false });
+                }
+
+                if (proxyMode === 'auto') {
+                    targets.push({ name: 'ThingProxy Relay', url: `https://thingproxy.freeboard.io/fetch/${ep}`, isDirect: false });
+                }
+            });
+
+            let lastError = null;
+
+            for (const target of targets) {
+                try {
+                    console.log(`[OAuth2] Requesting token via: ${target.name} (${target.url})`);
+                    
+                    const res = await fetch(target.url, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: tokenBody
+                    });
+
+                    if (!res.ok && res.status >= 500) {
+                        console.warn(`[OAuth2] Target ${target.name} returned HTTP ${res.status}`);
+                        continue;
+                    }
+
+                    const text = await res.text();
+                    let data = {};
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        console.warn(`[OAuth2] Response from ${target.name} was not JSON:`, text.substring(0, 100));
+                        continue;
+                    }
+
+                    if (data && data.error === 'keyless_legacy_url') {
+                        console.warn(`[OAuth2] CorsProxy returned keyless_legacy_url error.`);
+                        lastError = new Error('corsproxy.io keyless access deprecated. Use a Custom Cloudflare Worker or CorsProxy Key.');
+                        continue;
+                    }
+
+                    if (data && (data.access_token || data.error || data.error_description)) {
+                        const isCorsBlocked = data.error_description && (
+                            data.error_description.includes('AADSTS90023') ||
+                            data.error_description.includes('Cross-origin token redemption') ||
+                            data.error_description.includes('AllowedOriginForNativeAppCorsRequestInOAuthToken')
+                        );
+
+                        // If Azure AD rejects due to Origin header restrictions, continue attempting remaining relays
+                        if (isCorsBlocked) {
+                            console.warn(`[OAuth2] Gateway ${target.name} blocked by Azure Origin policy. Retrying next target...`);
+                            lastError = new Error('Azure Origin Policy: Cross-origin token redemption restricted for this Client ID. Use a Custom Cloudflare Worker proxy that deletes Origin headers.');
+                            continue;
+                        }
+
+                        return data;
+                    }
+                } catch (err) {
+                    console.warn(`[OAuth2] Connection via ${target.name} failed:`, err.message || err);
+                    lastError = err;
+                }
+            }
+
+            throw lastError || new Error('Network request failed across all gateway endpoints.');
+        }
+
+        function parseAndLoadAccounts() {
+            const raw = document.getElementById('rawInput').value;
+            if (!raw || !raw.trim()) {
+                showToast('Please enter credentials into the text box.', 'warning');
+                return;
+            }
+
+            const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            let addedCount = 0;
+
+            lines.forEach(line => {
+                const parts = line.split('|').map(p => p.trim());
+                if (parts.length < 3) return;
+
+                let email = '', password = '', refreshToken = '', clientId = '', clientSecret = '';
+
+                const isGuid = (str) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str);
+
+                if (parts.length === 3) {
+                    // email|refresh_token|client_id
+                    [email, refreshToken, clientId] = parts;
+                } else if (parts.length === 4) {
+                    if (isGuid(parts[2])) {
+                        // email|refresh_token|client_id|client_secret
+                        [email, refreshToken, clientId, clientSecret] = parts;
+                    } else {
+                        // email|password|refresh_token|client_id
+                        [email, password, refreshToken, clientId] = parts;
+                    }
+                } else if (parts.length >= 5) {
+                    // email|password|refresh_token|client_id|client_secret
+                    [email, password, refreshToken, clientId, clientSecret] = parts;
+                }
+
+                if (email && refreshToken && clientId) {
+                    const cleanSecret = (clientSecret || '').trim();
+                    const validSecret = (cleanSecret && !['null', 'none', 'undefined', 'false'].includes(cleanSecret.toLowerCase())) ? cleanSecret : '';
+
+                    const existingIdx = accounts.findIndex(a => a.email.toLowerCase() === email.toLowerCase());
+                    const accObj = {
+                        email,
+                        password,
+                        refreshToken,
+                        clientId,
+                        clientSecret: validSecret,
+                        status: 'idle',
+                        errorMsg: '',
+                        messages: [],
+                        accessToken: null
+                    };
+
+                    if (existingIdx >= 0) {
+                        accounts[existingIdx] = accObj;
+                    } else {
+                        accounts.push(accObj);
+                    }
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                showToast(`Loaded ${addedCount} account(s) into queue.`, 'success');
+                renderAccountList();
+                if (selectedAccountIndex === null && accounts.length > 0) {
+                    selectAccount(0);
+                }
+            } else {
+                showToast('No valid account entries found. Check line format.', 'error');
+            }
+        }
+
+        function clearAccounts() {
+            accounts = [];
+            selectedAccountIndex = null;
+            selectedMessageIndex = null;
+            renderAccountList();
+            resetMailViewer();
+            showToast('Account queue cleared.', 'info');
+        }
+
+        function deleteAccount(index) {
+            accounts.splice(index, 1);
+            if (selectedAccountIndex === index) {
+                selectedAccountIndex = accounts.length > 0 ? 0 : null;
+                if (selectedAccountIndex !== null) {
+                    selectAccount(selectedAccountIndex);
+                } else {
+                    resetMailViewer();
+                }
+            } else if (selectedAccountIndex > index) {
+                selectedAccountIndex--;
+            }
+            renderAccountList();
+        }
+
+        function resetMailViewer() {
+            document.getElementById('currentEmailDisplay').innerHTML = `Select an account from the queue`;
+            document.getElementById('emailListCol').innerHTML = `
+                <div class="text-center py-12 text-slate-500 text-xs">
+                    <i class="fa-regular fa-envelope text-3xl mb-2 text-slate-600 block"></i>
+                    Select or fetch an account to load inbox messages.
+                </div>`;
+            document.getElementById('emailDetailCol').innerHTML = `
+                <div class="my-auto text-center py-12 text-slate-500 text-xs">
+                    <i class="fa-solid fa-file-invoice text-3xl mb-2 text-slate-600 block"></i>
+                    Click an email message on the left to read details.
+                </div>`;
+            document.getElementById('mailCountBadge').classList.add('hidden');
+        }
+
+        function selectAccount(index) {
+            if (index < 0 || index >= accounts.length) return;
+            selectedAccountIndex = index;
+            selectedMessageIndex = null;
+            const acc = accounts[index];
+            
+            document.getElementById('currentEmailDisplay').innerHTML = `
+                <i class="fa-solid fa-user-circle text-indigo-400"></i> ${escapeHtml(acc.email)}
+            `;
+
+            renderAccountList();
+
+            if (acc.messages && acc.messages.length > 0) {
+                renderEmailList(acc.messages);
+            } else {
+                document.getElementById('emailListCol').innerHTML = `
+                    <div class="text-center py-12 text-slate-500 text-xs">
+                        <i class="fa-regular fa-envelope text-3xl mb-2 text-slate-600 block"></i>
+                        ${acc.status === 'error' ? 'Failed to load inbox. Click refresh button to retry.' : 'Click "Fetch" to load inbox messages.'}
+                    </div>`;
+                document.getElementById('emailDetailCol').innerHTML = `
+                    <div class="my-auto text-center py-12 text-slate-500 text-xs">
+                        <i class="fa-solid fa-file-invoice text-3xl mb-2 text-slate-600 block"></i>
+                        Select or fetch messages to view details.
+                    </div>`;
+                document.getElementById('mailCountBadge').classList.add('hidden');
+            }
+        }
+
+        function renderAccountList() {
+            const listContainer = document.getElementById('accountList');
+            const countBadge = document.getElementById('accountCount');
+            const fetchAllBtn = document.getElementById('fetchAllBtn');
+
+            countBadge.innerText = accounts.length;
+            fetchAllBtn.disabled = accounts.length === 0;
+
+            if (accounts.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-10 text-slate-500 text-xs">
+                        <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-600 block"></i>
+                        No accounts loaded yet. Paste format above and click "Load Accounts".
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            accounts.forEach((acc, idx) => {
+                const isSelected = selectedAccountIndex === idx;
+                let statusBadge = '';
+                if (acc.status === 'idle') {
+                    statusBadge = `<span class="px-2 py-0.5 text-[10px] rounded-md bg-slate-700 text-slate-300">Ready</span>`;
+                } else if (acc.status === 'loading') {
+                    statusBadge = `<span class="px-2 py-0.5 text-[10px] rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1"><i class="fa-solid fa-spinner animate-spin"></i> Fetching...</span>`;
+                } else if (acc.status === 'success') {
+                    statusBadge = `<span class="px-2 py-0.5 text-[10px] rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">${acc.messages.length} Mails</span>`;
+                } else if (acc.status === 'error') {
+                    statusBadge = `<span class="px-2 py-0.5 text-[10px] rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">Failed</span>`;
+                }
+
+                html += `
+                    <div onclick="selectAccount(${idx})" class="p-3 rounded-xl border transition cursor-pointer flex items-center justify-between gap-2 ${
+                        isSelected 
+                        ? 'bg-indigo-600/20 border-indigo-500/70 shadow-lg' 
+                        : 'bg-slate-900/50 border-slate-700/50 hover:bg-slate-800/80'
+                    }">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-semibold text-white truncate">${escapeHtml(acc.email)}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="text-[10px] text-slate-400 truncate font-mono">
+                                Client ID: ${escapeHtml(acc.clientId.substring(0, 8))}...
+                            </div>
+                            ${acc.errorMsg ? `<div class="text-[10px] text-rose-400 truncate mt-1">${escapeHtml(acc.errorMsg)}</div>` : ''}
+                        </div>
+                        <div class="flex items-center space-x-1" onclick="event.stopPropagation()">
+                            <button onclick="fetchInboxForAccount(${idx})" title="Fetch Inbox" class="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-700/60 rounded-lg transition">
+                                <i class="fa-solid fa-rotate text-xs"></i>
+                            </button>
+                            <button onclick="deleteAccount(${idx})" title="Remove Account" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 rounded-lg transition">
+                                <i class="fa-solid fa-xmark text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+        }
+
+        async function fetchInboxForAccount(index) {
+            const acc = accounts[index];
+            if (!acc) return;
+            acc.status = 'loading';
+            acc.errorMsg = '';
+            renderAccountList();
+
+            const tenant = document.getElementById('tenantSelect').value || 'common';
+            const topLimit = document.getElementById('messageLimit').value || '25';
+
+            try {
+                // Step 1: Request Access Token using Refresh Token
+                const payloadParams = {
+                    client_id: acc.clientId,
+                    grant_type: 'refresh_token',
+                    refresh_token: acc.refreshToken,
+                    scope: 'https://graph.microsoft.com/Mail.Read offline_access'
+                };
+
+                const cleanSecret = (acc.clientSecret || '').trim();
+                if (cleanSecret && !['null', 'none', 'undefined', 'false'].includes(cleanSecret.toLowerCase())) {
+                    payloadParams.client_secret = cleanSecret;
+                }
+
+                let tokenData;
+                try {
+                    tokenData = await executeTokenExchange(acc, tenant, payloadParams);
+                } catch (firstErr) {
+                    // Check if error is due to client being public
+                    const errMsg = firstErr.message || '';
+                    if (payloadParams.client_secret && (
+                        errMsg.includes("Public clients can't send a client secret") ||
+                        errMsg.includes("AADSTS700025") ||
+                        errMsg.includes("client_secret should not be sent")
+                    )) {
+                        console.warn(`[OAuth2] ${acc.email} is a public client. Retrying without client_secret...`);
+                        delete payloadParams.client_secret;
+                        acc.clientSecret = '';
+                        tokenData = await executeTokenExchange(acc, tenant, payloadParams);
+                    } else {
+                        throw firstErr;
+                    }
+                }
+
+                // Check if tokenData body returned the public client error description
+                if (tokenData && tokenData.error_description && (
+                    tokenData.error_description.includes("Public clients can't send a client secret") ||
+                    tokenData.error_description.includes("AADSTS700025") ||
+                    tokenData.error_description.includes("client_secret should not be sent")
+                )) {
+                    if (payloadParams.client_secret) {
+                        console.warn(`[OAuth2] ${acc.email} is a public client. Retrying without client_secret...`);
+                        delete payloadParams.client_secret;
+                        acc.clientSecret = '';
+                        tokenData = await executeTokenExchange(acc, tenant, payloadParams);
+                    }
+                }
+
+                if (tokenData.error || tokenData.error_description) {
+                    throw new Error(tokenData.error_description || tokenData.error || 'Failed to exchange refresh token.');
+                }
+
+                acc.accessToken = tokenData.access_token;
+                if (tokenData.refresh_token) {
+                    acc.refreshToken = tokenData.refresh_token;
+                }
+
+                // Step 2: Query Microsoft Graph API for inbox messages
+                const mailEndpoint = `https://graph.microsoft.com/v1.0/me/messages?$top=${topLimit}&$select=id,subject,from,receivedDateTime,bodyPreview,body,isRead,importance,hasAttachments`;
+
+                const mailRes = await fetch(mailEndpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${acc.accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const mailData = await mailRes.json();
+
+                if (!mailRes.ok) {
+                    throw new Error(mailData.error?.message || 'Failed to retrieve inbox messages from Graph API.');
+                }
+
+                acc.status = 'success';
+                acc.messages = mailData.value || [];
+                showToast(`Successfully fetched ${acc.messages.length} emails for ${acc.email}`, 'success');
+
+            } catch (err) {
+                console.error(`OAuth2/Graph API error for ${acc.email}:`, err);
+                acc.status = 'error';
+                
+                let friendlyMsg = err.message || 'Network error connecting to Microsoft servers.';
+                if (friendlyMsg.includes('Failed to fetch')) {
+                    friendlyMsg = 'Browser/CORS fetch blocked. Use a Custom Cloudflare Proxy in Network settings.';
+                }
+
+                acc.errorMsg = friendlyMsg;
+                showToast(`Error (${acc.email}): ${acc.errorMsg.substring(0, 60)}...`, 'error');
+            }
+
+            renderAccountList();
+            if (selectedAccountIndex === index) {
+                selectAccount(index);
+            }
+        }
+
+        async function fetchAllAccounts() {
+            if (accounts.length === 0) return;
+            showToast('Starting bulk fetch for all queued accounts...', 'info');
+            for (let i = 0; i < accounts.length; i++) {
+                await fetchInboxForAccount(i);
+            }
+        }
+
+        function renderEmailList(messages) {
+            const container = document.getElementById('emailListCol');
+            const badge = document.getElementById('mailCountBadge');
+            
+            badge.innerText = `${messages.length} Messages`;
+            badge.classList.remove('hidden');
+
+            if (!messages || messages.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-500 text-xs">
+                        <i class="fa-regular fa-envelope text-3xl mb-2 text-slate-600 block"></i>
+                        No messages found in inbox.
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            messages.forEach((msg, idx) => {
+                const isSelected = selectedMessageIndex === idx;
+                const senderName = msg.from?.emailAddress?.name || msg.from?.emailAddress?.address || 'Unknown Sender';
+                const subject = msg.subject || '(No Subject)';
+                const dateStr = msg.receivedDateTime ? new Date(msg.receivedDateTime).toLocaleString() : '';
+                const isRead = msg.isRead;
+
+                html += `
+                    <div onclick="viewEmailDetail(${idx})" class="p-3 rounded-xl border transition cursor-pointer text-xs ${
+                        isSelected 
+                        ? 'bg-blue-600/20 border-blue-500/70 shadow-lg' 
+                        : isRead ? 'bg-slate-900/40 border-slate-700/40 hover:bg-slate-800/60' : 'bg-slate-800/80 border-slate-600/60 font-semibold hover:bg-slate-800'
+                    }">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-slate-200 truncate ${!isRead ? 'text-white font-bold' : ''}">${escapeHtml(senderName)}</span>
+                            <span class="text-[10px] text-slate-400 flex-shrink-0 ml-1">${escapeHtml(dateStr)}</span>
+                        </div>
+                        <div class="text-slate-300 font-medium truncate mb-1">${escapeHtml(subject)}</div>
+                        <div class="text-[11px] text-slate-400 line-clamp-2 font-normal">${escapeHtml(msg.bodyPreview || '')}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function viewEmailDetail(msgIdx) {
+            selectedMessageIndex = msgIdx;
+            if (selectedAccountIndex === null) return;
+            const acc = accounts[selectedAccountIndex];
+            if (!acc || !acc.messages) return;
+
+            const msg = acc.messages[msgIdx];
+            if (!msg) return;
+
+            renderEmailList(acc.messages);
+
+            const detailCol = document.getElementById('emailDetailCol');
+            const senderName = msg.from?.emailAddress?.name || 'Unknown';
+            const senderAddr = msg.from?.emailAddress?.address || '';
+            const dateStr = msg.receivedDateTime ? new Date(msg.receivedDateTime).toLocaleString() : '';
+            const subject = msg.subject || '(No Subject)';
+
+            let bodyContent = '';
+            if (msg.body && msg.body.contentType === 'html') {
+                bodyContent = `<iframe srcdoc="${escapeHtml(msg.body.content)}" class="w-full h-[450px] bg-white rounded-lg border-0"></iframe>`;
+            } else {
+                bodyContent = `<div class="bg-slate-900 p-4 rounded-lg text-slate-200 font-mono text-xs whitespace-pre-wrap overflow-x-auto">${escapeHtml(msg.body?.content || msg.bodyPreview || 'No content')}</div>`;
+            }
+
+            detailCol.innerHTML = `
+                <div class="flex flex-col h-full space-y-4">
+                    <div class="border-b border-slate-700/60 pb-3">
+                        <h4 class="text-base font-bold text-white mb-2">${escapeHtml(subject)}</h4>
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <div>
+                                <strong class="text-slate-200">${escapeHtml(senderName)}</strong> 
+                                ${senderAddr ? `&lt;${escapeHtml(senderAddr)}&gt;` : ''}
+                            </div>
+                            <span>${escapeHtml(dateStr)}</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        ${bodyContent}
+                    </div>
+                </div>
+            `;
+        }
+
+        window.parseAndLoadAccounts = parseAndLoadAccounts;
+        window.clearAccounts = clearAccounts;
+        window.deleteAccount = deleteAccount;
+        window.selectAccount = selectAccount;
+        window.fetchInboxForAccount = fetchInboxForAccount;
+        window.fetchAllAccounts = fetchAllAccounts;
+        window.viewEmailDetail = viewEmailDetail;
+        window.toggleCustomProxyInput = toggleCustomProxyInput;
+        window.toggleTroubleshootModal = toggleTroubleshootModal;
+        window.testProxyGateway = testProxyGateway;
+    </script>
+</body>
+</html>
